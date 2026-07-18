@@ -44,3 +44,7 @@ lighthouse-report.html
 # Temporary
 *.tmp
 *.bak
+
+# AI assistant configuration (not project source code)
+# These are Antigravity skill files for design/UI tooling
+.agents/skills/

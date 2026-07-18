@@ -38,7 +38,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      styleSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Required: React style={{}} renders as HTML style="" attributes
       imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'"],
     },

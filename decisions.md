@@ -142,9 +142,25 @@ priority = max(21, 40
 
 **Status:** Accepted  
 **Decision:**
-- Helmet.js strict CSP (no inline scripts, no external script sources)
+- Helmet.js strict CSP: `script-src 'self'` (no unsafe-inline — XSS protection intact)
+- `style-src 'self' 'unsafe-inline'` — **deliberately kept**. React's `style={{}}` prop compiles to HTML `style="..."` attributes; `style-src` without `'unsafe-inline'` silently drops all of them in real browsers. CSS injection via `style-src` cannot execute JavaScript and is a significantly lower risk than `script-src unsafe-inline`. A nonce-based approach was considered but requires server-side nonce injection into the HTML shell, which is incompatible with static Firebase Hosting delivery. Moving all 50+ inline styles to CSS classes was considered but cannot solve genuinely data-driven values (e.g. occupancy bar width = `${pct}%`).
 - Rate limiting: 30/min AI routes (Gemini is expensive), 300/min data routes
 - Zod validation on all POST inputs, rejecting unknown keys
 - Body size capped at 16KB to prevent DoS
 - Input sanitizer strips HTML tags and `javascript:` protocol from all string inputs
 - Prompt injection containment: system prompt explicitly instructs Gemini to ignore embedded instructions in user messages
+
+---
+
+## ADR-11: Dual Deployment Path — Firebase Hosting + Cloud Run
+
+**Status:** Accepted  
+**Context:** ADR-1 justified a single Cloud Run URL to avoid a client/server CORS hop. Firebase Hosting introduces a second domain (`*.web.app`) which would reintroduce that hop unless handled correctly.  
+**Decision:** Firebase Hosting is used as a CDN layer in front of Cloud Run, not as a separate service. The `firebase.json` rewrites are ordered:
+1. `/api/**` → Cloud Run (`sofi-copilot` service) via Firebase Hosting Run rewrite
+2. `/healthz` → Cloud Run (same service)
+3. `**` → `/index.html` (React SPA shell)
+
+This means all requests — static assets and API calls — share the same `*.web.app` origin. **No CORS hop is introduced**: the browser sees one origin for both the UI and the API. The Express CORS allowlist is still needed for local dev (Vite dev server on :5173 → Express on :8080).  
+**Consequence:** The `/api/**` rewrite MUST appear before the `**` SPA catch-all in `firebase.json`. A `**`-first config (as the original file had) would return `index.html` for all API calls — a silent failure that only manifests at runtime.  
+**Alternatives considered:** Separate Firebase Hosting domain + CORS: rejected (ADR-1). Cloud Run serving both static files and API: rejected (no CDN, worse cold-start for static assets).

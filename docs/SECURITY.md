@@ -31,12 +31,29 @@ Browser  →[CORS + HTTPS]→  Cloud Run  →[VPC]→  Firestore
 ### 2. Content Security Policy (Helmet)
 ```
 default-src: 'self'
-script-src:  'self'           ← no unsafe-inline, no CDN scripts
-style-src:   'self'           ← no unsafe-inline (all styles in CSS files)
-img-src:     'self' data:     ← only local images and data URIs
-connect-src: 'self'           ← API calls to same origin only
+script-src:  'self'              ← NO unsafe-inline (XSS protection intact)
+style-src:   'self' 'unsafe-inline'  ← deliberately kept (see below)
+imgSrc:     'self' data:         ← only local images and data URIs
+connect-src: 'self'              ← API calls to same origin only
 ```
-> **Note**: `unsafe-inline` was removed from `style-src` in the post-review fix (2026-07-18). All styles are now in `index.css`.
+
+**Why `style-src 'unsafe-inline'` is kept (ADR-10):**
+React's `style={{}}` prop compiles to HTML `style="..."` element attributes.
+`style-src 'self'` without `'unsafe-inline'` silently drops ALL of these in any
+browser enforcing CSP — including the occupancy bar `width: X%` in `ZoneGrid.tsx`
+and every layout style across 7 component files. The options are:
+1. `style-src 'unsafe-inline'` — keeps React inline styles, accepted (CSS injection
+   cannot execute JavaScript — much lower risk than `script-src unsafe-inline`)
+2. Nonce-based CSP — requires server-side nonce injection into the HTML shell,
+   incompatible with static Firebase Hosting delivery
+3. Move all 50+ inline styles to CSS classes — does not solve genuinely data-driven
+   values like `width: ${pct}%` which cannot be expressed as a static class
+
+`script-src` remains strict (`'self'` only) — the XSS-critical directive is intact.
+
+> [!NOTE]
+> Previous versions of SECURITY.md incorrectly stated "No unsafe-inline" and
+> "All styles are in index.css". Both claims were wrong. This version is accurate.
 
 ### 3. Rate Limiting
 | Route group | Limit | Rationale |
@@ -101,7 +118,8 @@ Dockerfile runs as a non-root `nodejs:1001` user.
 
 ## Security Checklist
 
-- [x] No `unsafe-inline` in CSP (fixed 2026-07-18)
+- [x] `script-src` has no `unsafe-inline` (XSS protection intact)
+- [x] `style-src 'unsafe-inline'` kept intentionally (ADR-10) — React inline styles require it; CSS injection cannot execute JS
 - [x] Rate limiting on all routes including simulation/tick (fixed 2026-07-18)
 - [x] Zod validation on all POST inputs
 - [x] HTML/JS injection sanitization
@@ -112,5 +130,7 @@ Dockerfile runs as a non-root `nodejs:1001` user.
 - [x] CORS allowlist
 - [x] HSTS via Helmet
 - [x] gitleaks scan in CI
+- [x] Firebase Hosting API proxy correctly ordered before SPA catch-all (ADR-11)
 - [ ] Authentication on volunteer routes (future work)
+- [ ] Nonce-based CSP for style attributes (future work — requires SSR)
 - [ ] API request signing (future work)
