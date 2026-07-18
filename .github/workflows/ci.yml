@@ -29,6 +29,11 @@ jobs:
         run: npm ci
         working-directory: .
 
+      - name: Audit production dependencies
+        # Fail on high/critical; moderate allowed (tracked in decisions.md)
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: server
+
       - name: Lint
         run: npm run lint
 
