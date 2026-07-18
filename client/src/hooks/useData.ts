@@ -42,9 +42,11 @@ export function useZones() {
 
 // ── Task queue (3s — faster for volunteer dashboard) ─────────────────────────
 export function useTasks(filters?: { type?: string; status?: string }) {
+  const type = filters?.type;
+  const status = filters?.status;
   const fetcher = useCallback(
-    () => api.tasks({ ...filters, limit: 30 }),
-    [filters?.type, filters?.status],
+    () => api.tasks({ type, status, limit: 30 }),
+    [type, status],
   );
   return usePolling(fetcher, 3000);
 }

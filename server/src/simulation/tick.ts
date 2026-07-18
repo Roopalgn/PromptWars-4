@@ -232,7 +232,7 @@ export function generateEscortRequests(
 
 const INCIDENT_ZONE_IDS = sofiVenue.zones.map((z) => z.zoneId);
 
-let incidentSeed = 0;
+let _incidentSeed = 0;
 
 /**
  * Maintain incident list: occasionally add new incidents, advance status.
@@ -269,7 +269,7 @@ export function advanceIncidents(
       status: 'open',
       reportedAt: now,
     });
-    incidentSeed++;
+    _incidentSeed++;
   }
 
   return active;
