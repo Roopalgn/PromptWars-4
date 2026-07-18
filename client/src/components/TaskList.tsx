@@ -20,7 +20,8 @@ function getPriorityClass(p: number): string {
 }
 
 function formatAge(isoDate: string): string {
-  const secs = Math.round((Date.now() - new Date(isoDate).getTime()) / 1000);
+  const secs = Math.max(0, Math.round((Date.now() - new Date(isoDate).getTime()) / 1000));
+  if (secs < 10)   return 'just now';
   if (secs < 60)   return `${secs}s ago`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
   return `${Math.floor(secs / 3600)}h ago`;
@@ -48,7 +49,8 @@ export function TaskList({ tasks, limit = 20 }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <span
               className={`priority-badge priority-badge--${getPriorityClass(task.priority)}`}
-              aria-label={`Priority ${task.priority}`}
+              aria-label={`Priority ${task.priority} (Lower = More Urgent)`}
+              title={`Priority Rank: ${task.priority} (Lower number = higher urgency)`}
             >
               {task.priority}
             </span>
@@ -73,13 +75,13 @@ export function TaskList({ tasks, limit = 20 }: Props) {
                   title={`${task.conflicts.length} conflict(s) detected`}
                   role="alert"
                 >
-                  ⚡ {task.conflicts.length} conflict
+                  ⚡ {task.conflicts.length} conflict{task.conflicts.length !== 1 ? 's' : ''}
                 </span>
               )}
             </div>
             <p className="task-card__reasoning">{task.reasoning}</p>
             <div className="task-card__meta">
-              <span className="task-card__location">📍 {task.zoneId.replace(/-/g, ' ')}</span>
+              <span className="task-card__location">📍 {task.zoneId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
               {task.assignedTo && <span>👤 {task.assignedTo}</span>}
               <span>{formatAge(task.createdAt)}</span>
             </div>

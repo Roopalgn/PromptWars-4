@@ -27,6 +27,12 @@ import { processWithGemini } from './agent/gemini.js';
 import { processOfflineQuery } from './agent/offline.js';
 import type { EscortRequest, SimulationState } from './types/index.js';
 import { randomUUID } from 'crypto';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -274,8 +280,55 @@ app.get('/api/simulation/tick', dataLimiter, (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 404 + error handlers
+// Static frontend serving / Dev landing / 404 + error handlers
 // ---------------------------------------------------------------------------
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+const hasClientDist = fs.existsSync(clientDistPath);
+
+if (hasClientDist) {
+  app.use(express.static(clientDistPath));
+  app.get('/*path', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path === '/healthz') { next(); return; }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+} else {
+  app.get('/*path', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path === '/healthz') { next(); return; }
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <title>SoFi Stadium Copilot API Server</title>
+        <style>
+          body { font-family: system-ui, -apple-system, sans-serif; background: #0b0f19; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+          .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; border: 1px solid #334155; max-width: 500px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+          h1 { color: #a78bfa; margin-top: 0; }
+          p { color: #cbd5e1; line-height: 1.6; }
+          .btn-container { display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap; }
+          a.btn { background: #6366f1; color: white; padding: 0.75rem 1.25rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600; transition: background 0.2s; }
+          a.btn:hover { background: #4f46e5; }
+          a.btn-secondary { background: #334155; }
+          a.btn-secondary:hover { background: #475569; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>🏟️ SoFi Stadium Copilot API</h1>
+          <p>The backend API server is running normally on port <strong>8080</strong>.</p>
+          <p>To view the <strong>Frontend Web Application</strong> in development mode, please open the Vite client URL below:</p>
+          <div class="btn-container">
+            <a class="btn" href="http://localhost:5174/" target="_blank">Open Web App (5174)</a>
+            <a class="btn btn-secondary" href="http://localhost:5173/" target="_blank">Open Web App (5173)</a>
+            <a class="btn btn-secondary" href="/healthz">API Health Check</a>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+  });
+}
+
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });

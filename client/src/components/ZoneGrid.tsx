@@ -50,9 +50,13 @@ export function ZoneGrid({ zones }: Props) {
             />
           </div>
           <div className="occupancy-pct">
-            {Math.round(zone.weatherAdjustedPct)}% adjusted
-            {zone.weatherAdjustedPct !== zone.occupancyPct && (
-              <span style={{ opacity: 0.7 }}> ({Math.round(zone.occupancyPct)}% raw)</span>
+            {Math.round(zone.weatherAdjustedPct) === Math.round(zone.occupancyPct) ? (
+              <span>{Math.round(zone.occupancyPct)}% occupancy</span>
+            ) : (
+              <span>
+                {Math.round(zone.weatherAdjustedPct)}% adjusted
+                <span style={{ opacity: 0.7 }}> ({Math.round(zone.occupancyPct)}% raw)</span>
+              </span>
             )}
           </div>
         </div>

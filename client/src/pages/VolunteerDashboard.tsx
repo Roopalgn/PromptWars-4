@@ -9,12 +9,12 @@ export function VolunteerDashboard() {
   const { data: tasksData, loading: tasksLoading } = useTasks();
 
   const criticalCount = zonesData?.zones.filter(z => z.status === 'critical').length ?? 0;
-  const conflictCount = tasksData?.tasks.reduce((acc, t) => acc + (t.conflicts.length > 0 ? 1 : 0), 0) ?? 0;
+  const conflictCount = tasksData?.tasks.reduce((acc, t) => acc + t.conflicts.length, 0) ?? 0;
 
   return (
     <div className="page gradient-hero">
       {/* Status bar */}
-      <div className="status-bar" style={{ borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-6)', border: '1px solid var(--border)' }}>
+      <div className="status-bar" style={{ borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-6)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
         <div className="status-bar__item">
           <span className="live-dot" aria-hidden="true" />
           <span>Live</span>
@@ -42,7 +42,7 @@ export function VolunteerDashboard() {
             <h2 className="section-title">Zone Status</h2>
             {zonesLoading && !zonesData ? (
               <div className="zone-grid">
-                {[...Array(6)].map((_, i) => <div key={i} className="skeleton" style={{ height: 100 }} />)}
+                {[...Array(12)].map((_, i) => <div key={i} className="skeleton" style={{ height: 100 }} />)}
               </div>
             ) : (
               <ZoneGrid zones={zonesData?.zones ?? []} />

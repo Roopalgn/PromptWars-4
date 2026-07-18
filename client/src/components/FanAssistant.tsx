@@ -30,7 +30,7 @@ const QUICK_QUESTIONS = [
   'How do I request a wheelchair?',
 ];
 
-interface Message { id: string; role: 'user' | 'assistant'; text: string; }
+interface Message { id: string; role: 'user' | 'assistant'; text: string; offline?: boolean; }
 
 interface Props { needType?: string; onNeedChange?: (need: string) => void; }
 
@@ -43,11 +43,26 @@ export function FanAssistant({ needType: initialNeed = 'none', onNeedChange }: P
   const [needType, setNeedType] = useState(initialNeed);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showNeedPicker, setShowNeedPicker] = useState(false);
+  const [showQuickPrompts, setShowQuickPrompts] = useState(true);
+  const [audioNotice, setAudioNotice] = useState<string | null>(null);
+
   const { assist, loading } = useFanAssist();
   const { speak, stop, playing } = useTts();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (isNearBottom || messages.length <= 2) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages.length, loading]);
 
   const langMap: Record<string, string> = { en: 'en-US', es: 'es-US', fr: 'fr-FR', ar: 'ar-XA', zh: 'cmn-CN', pt: 'pt-BR', de: 'de-DE', hi: 'hi-IN' };
 
@@ -55,15 +70,30 @@ export function FanAssistant({ needType: initialNeed = 'none', onNeedChange }: P
     const query = (q ?? input).trim();
     if (!query || loading) return;
     setInput('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text: query }]);
+    setAudioNotice(null);
+
     const result = await assist(query, language, needType !== 'none' ? needType : undefined);
     if (result) {
-      const msg: Message = { id: crypto.randomUUID(), role: 'assistant', text: result.response };
+      const msg: Message = { id: crypto.randomUUID(), role: 'assistant', text: result.response, offline: result.offline };
       setMessages(prev => [...prev, msg]);
-      if (audioEnabled && !result.offline) {
-        speak(result.response, langMap[language] ?? 'en-US');
+      if (audioEnabled) {
+        if (result.offline) {
+          setAudioNotice('🔇 Audio unavailable in offline mode.');
+        } else {
+          speak(result.response, langMap[language] ?? 'en-US');
+        }
       }
+    } else {
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', text: '⚠️ Sorry, I encountered an issue connecting to the assistant. Please try asking again or check API connectivity.' }]);
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
   };
 
   const handleNeedSelect = (need: typeof NEED_TYPES[number]['id']) => {
@@ -97,8 +127,16 @@ export function FanAssistant({ needType: initialNeed = 'none', onNeedChange }: P
         </button>
 
         <button
+          className="btn btn--ghost btn--sm"
+          onClick={() => setShowQuickPrompts(v => !v)}
+          aria-expanded={showQuickPrompts}
+        >
+          💡 Quick Prompts {showQuickPrompts ? '▴' : '▾'}
+        </button>
+
+        <button
           className={`audio-toggle ${audioEnabled ? 'active' : ''}`}
-          onClick={() => { if (playing) stop(); setAudioEnabled(v => !v); }}
+          onClick={() => { if (playing) stop(); setAudioEnabled(v => !v); setAudioNotice(null); }}
           aria-pressed={audioEnabled}
           aria-label={audioEnabled ? 'Disable audio responses' : 'Enable audio responses'}
         >
@@ -128,8 +166,8 @@ export function FanAssistant({ needType: initialNeed = 'none', onNeedChange }: P
       )}
 
       {/* Quick questions */}
-      {messages.length <= 1 && (
-        <div style={{ padding: 'var(--space-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+      {showQuickPrompts && (
+        <div style={{ padding: 'var(--space-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', borderBottom: '1px solid var(--border)' }}>
           {QUICK_QUESTIONS.map(q => (
             <button key={q} className="btn btn--ghost btn--sm" onClick={() => send(q)} aria-label={q}>
               {q}
@@ -138,11 +176,25 @@ export function FanAssistant({ needType: initialNeed = 'none', onNeedChange }: P
         </div>
       )}
 
+      {audioNotice && (
+        <div style={{ padding: 'var(--space-2) var(--space-4)', background: 'rgba(245,158,11,0.1)', color: 'var(--color-amber-400)', fontSize: 'var(--text-xs)' }}>
+          {audioNotice}
+        </div>
+      )}
+
       {/* Messages */}
-      <div className="chat-messages" role="log" aria-live="polite" aria-label="Assistant conversation">
+      <div ref={messagesContainerRef} className="chat-messages" role="log" aria-live="polite" aria-label="Assistant conversation">
         {messages.map(m => (
-          <div key={m.id} className={`chat-bubble chat-bubble--${m.role}`}>
+          <div key={m.id} className={`chat-bubble chat-bubble--${m.role}${m.offline ? ' chat-bubble--offline' : ''}`}>
             {m.text}
+            {m.offline && (
+              <span
+                style={{ display: 'block', fontSize: 'var(--text-xs)', opacity: 0.7, marginTop: 4 }}
+                title="Gemini API unavailable or disabled. Using fast local rules engine fallback."
+              >
+                ⚡ Offline mode (Local Rules Engine)
+              </span>
+            )}
           </div>
         ))}
         {loading && (
@@ -160,14 +212,16 @@ export function FanAssistant({ needType: initialNeed = 'none', onNeedChange }: P
       {/* Input */}
       <div className="chat-input-row">
         <textarea
+          ref={inputRef}
           className="chat-input"
           id="fan-chat-input"
           rows={1}
           placeholder="Ask me anything about SoFi Stadium…"
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
           aria-label="Your question"
+          style={{ resize: 'none', overflowY: 'auto' }}
         />
         <button
           className="btn btn--primary btn--lg"
