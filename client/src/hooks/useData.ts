@@ -2,7 +2,7 @@
  * Custom hooks for data fetching — polling with configurable interval.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, type Task, type ZoneStatus } from '../api/client.js';
+import { api } from '../api/client.js';
 
 // ── Generic polling hook ─────────────────────────────────────────────────────
 export function usePolling<T>(

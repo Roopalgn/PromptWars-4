@@ -90,26 +90,61 @@ const HELP_TEXT = `I can help you with:
 This is offline mode — real-time AI responses require GEMINI_API_KEY.`;
 
 /**
+ * Language-aware offline notice prepended for non-English queries.
+ * Honest acknowledgement that offline mode responds in English only.
+ * Covers the 6 languages supported in FanAssistant.tsx.
+ */
+const OFFLINE_NOTICE: Record<string, string> = {
+  es: '⚠️ Modo sin conexión — respondiendo en inglés. / Offline mode — responding in English.\n\n',
+  fr: '⚠️ Mode hors ligne — réponse en anglais. / Offline mode — responding in English.\n\n',
+  ar: '⚠️ وضع غير متصل — الرد باللغة الإنجليزية. / Offline mode — responding in English.\n\n',
+  zh: '⚠️ 离线模式 — 用英语回复。/ Offline mode — responding in English.\n\n',
+  pt: '⚠️ Modo offline — respondendo em inglês. / Offline mode — responding in English.\n\n',
+  hi: '⚠️ ऑफ़लाइन मोड — अंग्रेज़ी में उत्तर दे रहे हैं। / Offline mode — responding in English.\n\n',
+  de: '⚠️ Offline-Modus — Antwort auf Englisch. / Offline mode — responding in English.\n\n',
+  ja: '⚠️ オフラインモード — 英語で返答します。/ Offline mode — responding in English.\n\n',
+};
+
+/**
  * Process a query offline using keyword matching + rules engine output.
  * Always returns a valid string response.
+ *
+ * @param query   The user's raw query (may contain a language hint appended by app.ts)
+ * @param engineOutput  Current rules engine output for live data
+ * @param language  ISO 639-1 language code from the request (default 'en')
  */
-export function processOfflineQuery(query: string, engineOutput: RulesEngineOutput): string {
+export function processOfflineQuery(
+  query: string,
+  engineOutput: RulesEngineOutput,
+  language = 'en',
+): string {
   const intent = detectIntent(query);
+  const notice = language !== 'en' ? (OFFLINE_NOTICE[language] ?? `⚠️ Offline mode — responding in English.\n\n`) : '';
 
+  let body: string;
   switch (intent) {
     case 'zone-status':
-      return formatZoneSummary(engineOutput);
+      body = formatZoneSummary(engineOutput);
+      break;
     case 'task-queue':
-      return `Top tasks:\n${formatTaskList(engineOutput)}`;
+      body = `Top tasks:\n${formatTaskList(engineOutput)}`;
+      break;
     case 'escort-queue':
-      return formatEscortSummary(engineOutput);
+      body = formatEscortSummary(engineOutput);
+      break;
     case 'gate-status':
-      return formatGateSummary(engineOutput);
+      body = formatGateSummary(engineOutput);
+      break;
     case 'incident':
-      return formatIncidentSummary(engineOutput);
+      body = formatIncidentSummary(engineOutput);
+      break;
     case 'help':
-      return HELP_TEXT;
+      body = HELP_TEXT;
+      break;
     default:
-      return `I'm in offline mode and couldn't understand your query. Try asking about zones, tasks, escorts, gates, or incidents.\n\n${HELP_TEXT}`;
+      body = `I'm in offline mode and couldn't understand your query. Try asking about zones, tasks, escorts, gates, or incidents.\n\n${HELP_TEXT}`;
   }
+
+  return notice + body;
 }
+

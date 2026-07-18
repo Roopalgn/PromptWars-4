@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { VolunteerDashboard } from './pages/VolunteerDashboard.js';
 import { FanPortal } from './pages/FanPortal.js';
 import './index.css';
 
-function Header({ view }: { view: 'volunteer' | 'fan' }) {
+
+function Header({ view: _view }: { view: 'volunteer' | 'fan' }) {
   return (
     <header className="header" role="banner">
       <a href="/" className="header__logo" aria-label="SoFi Stadium Copilot home">

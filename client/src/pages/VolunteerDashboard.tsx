@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useZones, useTasks } from '../hooks/useData.js';
 import { ZoneGrid } from '../components/ZoneGrid.js';
 import { TaskList } from '../components/TaskList.js';

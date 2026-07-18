@@ -1,4 +1,4 @@
-import React from 'react';
+
 import type { ZoneStatus } from '../api/client.js';
 
 const TYPE_ICONS: Record<string, string> = {

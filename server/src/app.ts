@@ -38,7 +38,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'"],
       imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'"],
     },
@@ -85,7 +85,15 @@ function getCurrentEngineOutput() {
 // Health check
 // ---------------------------------------------------------------------------
 app.get('/healthz', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
+  const geminiMode = process.env['GEMINI_API_KEY'] ? 'online' : 'offline';
+  const firestoreMode = process.env['GCP_PROJECT_ID'] ? 'connected' : 'memory';
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    gemini: geminiMode,
+    firestore: firestoreMode,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -188,7 +196,7 @@ app.post('/api/ask', aiLimiter, async (req, res) => {
     const result = await processWithGemini(query, output);
     res.json({ response: result.response, offline: result.usedOffline });
   } catch {
-    const response = processOfflineQuery(query, output);
+    const response = processOfflineQuery(query, output, 'en');
     res.json({ response, offline: true });
   }
 });
@@ -213,7 +221,7 @@ app.post('/api/fan/assist', aiLimiter, async (req, res) => {
     const result = await processWithGemini(query, output);
     res.json({ response: result.response, offline: result.usedOffline, language });
   } catch {
-    const response = processOfflineQuery(query, output);
+    const response = processOfflineQuery(query, output, language);
     res.json({ response, offline: true, language });
   }
 });
@@ -259,7 +267,7 @@ app.post('/api/tts', aiLimiter, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Simulation tick route (dev / demo)
 // ---------------------------------------------------------------------------
-app.get('/api/simulation/tick', (_req, res) => {
+app.get('/api/simulation/tick', dataLimiter, (_req, res) => {
   const state = tickSimulation();
   const output = computeTaskQueue({ venue: sofiVenue, state });
   res.json({ tick: state.tick, tasks: output.tasks.length, zones: output.zoneStatuses.length });

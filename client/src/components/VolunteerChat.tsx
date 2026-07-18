@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAsk } from '../hooks/useData.js';
 
 interface Message { id: string; role: 'user' | 'assistant'; text: string; offline?: boolean; }

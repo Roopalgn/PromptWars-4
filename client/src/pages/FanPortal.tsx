@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FanAssistant } from '../components/FanAssistant.js';
 import { api } from '../api/client.js';
 
