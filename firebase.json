@@ -10,15 +10,15 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "sofi-copilot",
-          "region": "us-central1"
+          "serviceId": "promptwars-smart-stadium",
+          "region": "asia-south1"
         }
       },
       {
         "source": "/healthz",
         "run": {
-          "serviceId": "sofi-copilot",
-          "region": "us-central1"
+          "serviceId": "promptwars-smart-stadium",
+          "region": "asia-south1"
         }
       },
       {

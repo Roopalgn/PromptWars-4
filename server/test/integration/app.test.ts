@@ -96,6 +96,13 @@ describe('GET /api/tasks', () => {
     expect(typeof res.body.total).toBe('number');
   });
 
+  it('shows meaningful demo operations tasks on fresh state', async () => {
+    const res = await request(app).get('/api/tasks');
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+    expect(res.body.tasks.some((task: { type: string }) => task.type === 'escort')).toBe(true);
+  });
+
   it('tasks are sorted by priority ascending', async () => {
     const res = await request(app).get('/api/tasks');
     const tasks: Array<{ priority: number }> = res.body.tasks;
@@ -110,6 +117,21 @@ describe('GET /api/tasks/:id', () => {
     const res = await request(app).get('/api/tasks/nonexistent-task-id');
     expect(res.status).toBe(404);
     expect(res.body.error).toBeDefined();
+  });
+});
+
+describe('PATCH /api/tasks/:id', () => {
+  it('moves a task through lifecycle state', async () => {
+    const queue = await request(app).get('/api/tasks');
+    const task = queue.body.tasks[0];
+    const res = await request(app)
+      .patch(`/api/tasks/${task.taskId}`)
+      .send({ status: 'in-progress', assignedTo: 'vol-001' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.taskId).toBe(task.taskId);
+    expect(res.body.status).toBe('in-progress');
+    expect(res.body.assignedTo).toBe('vol-001');
   });
 });
 
@@ -129,6 +151,23 @@ describe('POST /api/escort', () => {
     expect(res.status).toBe(201);
     expect(res.body.requestId).toBeDefined();
     expect(res.body.status).toBe('pending');
+  });
+
+  it('created escort appears in the volunteer task queue', async () => {
+    const escort = await request(app)
+      .post('/api/escort')
+      .send({
+        fanId: 'fan-flow-001',
+        currentZone: 'gate-a',
+        destinationZone: 'accessibility-hub',
+        needType: 'wheelchair',
+      });
+
+    const queue = await request(app).get('/api/tasks?type=escort');
+    expect(queue.status).toBe(200);
+    expect(queue.body.tasks.some((task: { metadata?: { requestId?: string } }) =>
+      task.metadata?.requestId === escort.body.requestId
+    )).toBe(true);
   });
 
   it('rejects request with missing needType', async () => {
@@ -187,6 +226,9 @@ describe('POST /api/ask (offline fallback)', () => {
     expect(res.status).toBe(200);
     expect(typeof res.body.response).toBe('string');
     expect(res.body.response.length).toBeGreaterThan(0);
+    expect(Array.isArray(res.body.factsUsed)).toBe(true);
+    expect(Array.isArray(res.body.taskIds)).toBe(true);
+    expect(Array.isArray(res.body.recommendedActions)).toBe(true);
   });
 
   it('sets offline: true in response when Gemini unavailable', async () => {

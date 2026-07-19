@@ -49,6 +49,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 export const api = {
   zones: () => get<{ zones: ZoneStatus[]; tick: number }>('/api/zones'),
   tasks: (params?: { type?: string; status?: string; limit?: number }) => {
@@ -59,6 +69,8 @@ export const api = {
     return get<{ tasks: Task[]; total: number }>(`/api/tasks?${qs}`);
   },
   task: (id: string) => get<Task>(`/api/tasks/${id}`),
+  updateTask: (id: string, data: { status: string; assignedTo?: string }) =>
+    patch<Task>(`/api/tasks/${id}`, data),
   ask: (query: string) => post<{ response: string; offline: boolean }>('/api/ask', { query }),
   fanAssist: (query: string, language = 'en', needType?: string) =>
     post<{ response: string; offline: boolean; language: string }>('/api/fan/assist', { query, language, needType }),

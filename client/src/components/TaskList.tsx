@@ -27,9 +27,14 @@ function formatAge(isoDate: string): string {
   return `${Math.floor(secs / 3600)}h ago`;
 }
 
-interface Props { tasks: Task[]; limit?: number; }
+interface Props {
+  tasks: Task[];
+  limit?: number;
+  onUpdateTask?: (taskId: string, status: string, assignedTo?: string) => void;
+  updatingTaskId?: string | null;
+}
 
-export function TaskList({ tasks, limit = 20 }: Props) {
+export function TaskList({ tasks, limit = 20, onUpdateTask, updatingTaskId }: Props) {
   const visible = tasks.slice(0, limit);
 
   if (visible.length === 0) {
@@ -88,10 +93,39 @@ export function TaskList({ tasks, limit = 20 }: Props) {
           </div>
 
           {/* Status pill */}
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 'var(--space-2)' }}>
             <span className={`status-pill status-pill--${task.status}`}>
               {task.status}
             </span>
+            {onUpdateTask && task.status !== 'resolved' && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {task.status === 'open' && (
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    disabled={updatingTaskId === task.taskId}
+                    onClick={() => onUpdateTask(task.taskId, 'assigned', task.assignedTo ?? 'vol-001')}
+                  >
+                    Assign
+                  </button>
+                )}
+                {(task.status === 'open' || task.status === 'assigned') && (
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    disabled={updatingTaskId === task.taskId}
+                    onClick={() => onUpdateTask(task.taskId, 'in-progress', task.assignedTo ?? 'vol-001')}
+                  >
+                    Start
+                  </button>
+                )}
+                <button
+                  className="btn btn--primary btn--sm"
+                  disabled={updatingTaskId === task.taskId}
+                  onClick={() => onUpdateTask(task.taskId, 'resolved', task.assignedTo)}
+                >
+                  Resolve
+                </button>
+              </div>
+            )}
           </div>
         </article>
       ))}

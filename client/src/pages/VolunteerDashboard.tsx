@@ -1,15 +1,28 @@
 
+import { useState } from 'react';
 import { useZones, useTasks } from '../hooks/useData.js';
 import { ZoneGrid } from '../components/ZoneGrid.js';
 import { TaskList } from '../components/TaskList.js';
 import { VolunteerChat } from '../components/VolunteerChat.js';
+import { api } from '../api/client.js';
 
 export function VolunteerDashboard() {
   const { data: zonesData, loading: zonesLoading } = useZones();
-  const { data: tasksData, loading: tasksLoading } = useTasks();
+  const { data: tasksData, loading: tasksLoading, refetch: refetchTasks } = useTasks();
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
   const criticalCount = zonesData?.zones.filter(z => z.status === 'critical').length ?? 0;
   const conflictCount = tasksData?.tasks.reduce((acc, t) => acc + t.conflicts.length, 0) ?? 0;
+
+  const handleUpdateTask = async (taskId: string, status: string, assignedTo?: string) => {
+    setUpdatingTaskId(taskId);
+    try {
+      await api.updateTask(taskId, { status, assignedTo });
+      refetchTasks();
+    } finally {
+      setUpdatingTaskId(null);
+    }
+  };
 
   return (
     <div className="page gradient-hero">
@@ -63,7 +76,12 @@ export function VolunteerDashboard() {
                 {[...Array(4)].map((_, i) => <div key={i} className="skeleton" style={{ height: 72 }} />)}
               </div>
             ) : (
-              <TaskList tasks={tasksData?.tasks ?? []} limit={15} />
+              <TaskList
+                tasks={tasksData?.tasks ?? []}
+                limit={15}
+                onUpdateTask={handleUpdateTask}
+                updatingTaskId={updatingTaskId}
+              />
             )}
           </section>
         </div>

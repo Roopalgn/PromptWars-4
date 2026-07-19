@@ -25,7 +25,8 @@ import { tickSimulation, getSimulationState } from './simulation/tick.js';
 import { sofiVenue } from './data/sofi-venue.js';
 import { processWithGemini } from './agent/gemini.js';
 import { processOfflineQuery } from './agent/offline.js';
-import type { EscortRequest, SimulationState } from './types/index.js';
+import { createEscortRequest, getOperationalOutput, listEscortRequests, updateTaskLifecycle } from './state/operations.js';
+import type { EscortRequest, TaskStatus } from './types/index.js';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import fs from 'fs';
@@ -35,6 +36,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ---------------------------------------------------------------------------
 // Security middleware
@@ -53,7 +55,7 @@ app.use(helmet({
 
 app.use(cors({
   origin: process.env['ALLOWED_ORIGIN'] ?? ['http://localhost:5173', 'http://localhost:3000'],
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -82,15 +84,32 @@ function sanitize(str: string): string {
 // ---------------------------------------------------------------------------
 // Simulation state helper (singleton for this process)
 // ---------------------------------------------------------------------------
-function getCurrentEngineOutput() {
-  const state: SimulationState = getSimulationState();
-  return computeTaskQueue({ venue: sofiVenue, state });
+async function getCurrentEngineOutput() {
+  return getOperationalOutput();
+}
+
+function buildAiEvidence(output: Awaited<ReturnType<typeof getCurrentEngineOutput>>) {
+  const topTasks = output.tasks.slice(0, 3);
+  const criticalZones = output.zoneStatuses.filter(zone => zone.status === 'critical');
+  return {
+    factsUsed: [
+      `${output.tasks.length} active task(s) in the deterministic queue`,
+      `${criticalZones.length} critical zone(s): ${criticalZones.map(zone => zone.zoneId).join(', ') || 'none'}`,
+      `${output.conflicts.length} conflict flag(s) from rules engine`,
+    ],
+    taskIds: topTasks.map(task => task.taskId),
+    recommendedActions: topTasks.map(task => ({
+      taskId: task.taskId,
+      action: task.status === 'open' ? 'assign' : task.status === 'assigned' ? 'start' : 'monitor',
+      rationale: task.reasoning,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Health check
 // ---------------------------------------------------------------------------
-app.get('/healthz', (_req, res) => {
+function sendHealth(res: express.Response) {
   const geminiMode = process.env['GEMINI_API_KEY'] ? 'online' : 'offline';
   const firestoreMode = process.env['GCP_PROJECT_ID'] ? 'connected' : 'memory';
   res.json({
@@ -100,21 +119,33 @@ app.get('/healthz', (_req, res) => {
     gemini: geminiMode,
     firestore: firestoreMode,
   });
+}
+
+app.get('/healthz', (_req, res) => {
+  sendHealth(res);
+});
+
+app.get('/api/healthz', (_req, res) => {
+  sendHealth(res);
 });
 
 // ---------------------------------------------------------------------------
 // Zone routes
 // ---------------------------------------------------------------------------
-app.get('/api/zones', dataLimiter, (_req, res) => {
-  const output = getCurrentEngineOutput();
+app.get('/api/zones', dataLimiter, async (_req, res, next) => {
+  try {
+  const output = await getCurrentEngineOutput();
   res.json({ zones: output.zoneStatuses, tick: getSimulationState().tick });
+  } catch (err) { next(err); }
 });
 
-app.get('/api/zones/:id', dataLimiter, (req, res) => {
-  const output = getCurrentEngineOutput();
+app.get('/api/zones/:id', dataLimiter, async (req, res, next) => {
+  try {
+  const output = await getCurrentEngineOutput();
   const zone = output.zoneStatuses.find(z => z.zoneId === req.params['id']);
   if (!zone) { res.status(404).json({ error: 'Zone not found' }); return; }
   res.json(zone);
+  } catch (err) { next(err); }
 });
 
 // ---------------------------------------------------------------------------
@@ -126,21 +157,44 @@ const taskQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
 
-app.get('/api/tasks', dataLimiter, (req, res) => {
+app.get('/api/tasks', dataLimiter, async (req, res, next) => {
+  try {
   const parsed = taskQuerySchema.safeParse(req.query);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const { type, status, limit } = parsed.data;
-  let tasks = getCurrentEngineOutput().tasks;
+  let tasks = (await getCurrentEngineOutput()).tasks;
   if (type) tasks = tasks.filter(t => t.type === type);
   if (status) tasks = tasks.filter(t => t.status === status);
   res.json({ tasks: tasks.slice(0, limit), total: tasks.length });
+  } catch (err) { next(err); }
 });
 
-app.get('/api/tasks/:id', dataLimiter, (req, res) => {
-  const output = getCurrentEngineOutput();
+app.get('/api/tasks/:id', dataLimiter, async (req, res, next) => {
+  try {
+  const output = await getCurrentEngineOutput();
   const task = output.tasks.find(t => t.taskId === req.params['id']);
   if (!task) { res.status(404).json({ error: 'Task not found' }); return; }
   res.json(task);
+  } catch (err) { next(err); }
+});
+
+const taskUpdateSchema = z.object({
+  status: z.enum(['open', 'assigned', 'in-progress', 'resolved']),
+  assignedTo: z.string().min(1).max(64).optional(),
+});
+
+app.patch('/api/tasks/:id', dataLimiter, async (req, res, next) => {
+  try {
+    const rawTaskId = req.params['id'];
+    const taskId = Array.isArray(rawTaskId) ? rawTaskId[0] : rawTaskId;
+    if (!taskId) { res.status(400).json({ error: 'Task ID is required' }); return; }
+    const parsed = taskUpdateSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    const { status, assignedTo } = parsed.data;
+    const updated = await updateTaskLifecycle(taskId, status as TaskStatus, assignedTo ? sanitize(assignedTo) : undefined);
+    if (!updated) { res.status(404).json({ error: 'Task not found' }); return; }
+    res.json(updated);
+  } catch (err) { next(err); }
 });
 
 // ---------------------------------------------------------------------------
@@ -153,10 +207,8 @@ const escortCreateSchema = z.object({
   needType: z.enum(['wheelchair', 'visual', 'hearing', 'elderly', 'cognitive']),
 });
 
-// In-memory escort request store (replaced by Firestore in Phase 4)
-const escortRequests: EscortRequest[] = [];
-
-app.post('/api/escort', dataLimiter, (req, res) => {
+app.post('/api/escort', dataLimiter, async (req, res, next) => {
+  try {
   const parsed = escortCreateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const { fanId, currentZone, destinationZone, needType } = parsed.data;
@@ -176,13 +228,16 @@ app.post('/api/escort', dataLimiter, (req, res) => {
     requestedAt: new Date().toISOString(),
     waitingMinutes: 0,
   };
-  escortRequests.push(request);
+  await createEscortRequest(request);
   res.status(201).json(request);
+  } catch (err) { next(err); }
 });
 
-app.get('/api/escort', dataLimiter, (_req, res) => {
-  const pending = escortRequests.filter(r => r.status === 'pending' || r.status === 'in-progress');
+app.get('/api/escort', dataLimiter, async (_req, res, next) => {
+  try {
+  const pending = await listEscortRequests();
   res.json({ requests: pending });
+  } catch (err) { next(err); }
 });
 
 // ---------------------------------------------------------------------------
@@ -196,14 +251,15 @@ app.post('/api/ask', aiLimiter, async (req, res) => {
   const parsed = askSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const query = sanitize(parsed.data.query);
-  const output = getCurrentEngineOutput();
+  const output = await getCurrentEngineOutput();
+  const evidence = buildAiEvidence(output);
 
   try {
     const result = await processWithGemini(query, output);
-    res.json({ response: result.response, offline: result.usedOffline });
+    res.json({ response: result.response, offline: result.usedOffline, ...evidence });
   } catch {
     const response = processOfflineQuery(query, output, 'en');
-    res.json({ response, offline: true });
+    res.json({ response, offline: true, ...evidence });
   }
 });
 
@@ -221,14 +277,15 @@ app.post('/api/fan/assist', aiLimiter, async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const { language } = parsed.data;
   const query = sanitize(parsed.data.query) + (language !== 'en' ? ` (respond in language code: ${language})` : '');
-  const output = getCurrentEngineOutput();
+  const output = await getCurrentEngineOutput();
+  const evidence = buildAiEvidence(output);
 
   try {
     const result = await processWithGemini(query, output);
-    res.json({ response: result.response, offline: result.usedOffline, language });
+    res.json({ response: result.response, offline: result.usedOffline, language, ...evidence });
   } catch {
     const response = processOfflineQuery(query, output, language);
-    res.json({ response, offline: true, language });
+    res.json({ response, offline: true, language, ...evidence });
   }
 });
 
@@ -247,8 +304,12 @@ app.post('/api/tts', aiLimiter, async (req, res) => {
   const { text, languageCode, voiceName } = parsed.data;
   const safeText = sanitize(text);
 
-  const apiKey = process.env['GOOGLE_CLOUD_API_KEY'] ?? process.env['GCP_API_KEY'];
-  if (!apiKey) {
+  const hasGoogleCloudIdentity = Boolean(
+    process.env['GCP_PROJECT_ID'] ??
+    process.env['GOOGLE_CLOUD_PROJECT'] ??
+    process.env['GOOGLE_APPLICATION_CREDENTIALS']
+  );
+  if (!hasGoogleCloudIdentity) {
     res.status(503).json({ error: 'TTS not available in offline mode', offline: true });
     return;
   }
@@ -265,8 +326,8 @@ app.post('/api/tts', aiLimiter, async (req, res) => {
     if (!audio) throw new Error('No audio content returned');
     const b64 = Buffer.isBuffer(audio) ? audio.toString('base64') : Buffer.from(audio as Uint8Array).toString('base64');
     res.json({ audio: b64, format: 'mp3', languageCode });
-  } catch (err) {
-    res.status(500).json({ error: 'TTS synthesis failed', detail: err instanceof Error ? err.message : 'Unknown error' });
+  } catch {
+    res.status(500).json({ error: 'TTS synthesis failed' });
   }
 });
 

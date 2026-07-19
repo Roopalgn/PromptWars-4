@@ -162,7 +162,11 @@ export async function processWithGemini(
   }
 
   // Check cache
-  const cacheKey = `${query}|${engineOutput.tasks.length}`;
+  const stateFingerprint = JSON.stringify({
+    tasks: engineOutput.tasks.map(task => [task.taskId, task.status, task.priority, task.assignedTo]),
+    zones: engineOutput.zoneStatuses.map(zone => [zone.zoneId, zone.status, Math.round(zone.weatherAdjustedPct)]),
+  });
+  const cacheKey = `${query}|${stateFingerprint}`;
   const cached = responseCache.get(cacheKey);
   if (cached) {
     return { response: cached, usedOffline: false };

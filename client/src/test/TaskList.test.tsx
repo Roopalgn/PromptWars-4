@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { render, screen } from '@testing-library/react';
 import { TaskList } from '../components/TaskList.js';
 import type { Task } from '../api/client.js';
@@ -78,5 +79,19 @@ describe('TaskList', () => {
     render(<TaskList tasks={tasks} />);
     const items = screen.getAllByRole('listitem');
     expect(items.length).toBe(3);
+  });
+
+  it('calls onUpdateTask when lifecycle action is clicked', async () => {
+    const user = userEvent.setup();
+    const calls: Array<[string, string, string | undefined]> = [];
+    render(
+      <TaskList
+        tasks={[makeTask({ status: 'open' })]}
+        onUpdateTask={(taskId, status, assignedTo) => calls.push([taskId, status, assignedTo])}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /start/i }));
+    expect(calls).toEqual([['task-001', 'in-progress', 'vol-001']]);
   });
 });

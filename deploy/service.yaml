@@ -1,7 +1,7 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: sofi-copilot
+  name: promptwars-smart-stadium
   annotations:
     run.googleapis.com/ingress: all
     run.googleapis.com/launch-stage: GA
@@ -9,36 +9,27 @@ spec:
   template:
     metadata:
       annotations:
-        # Allow up to 10 concurrent requests per instance (CPU-bound rules engine)
         autoscaling.knative.dev/maxScale: "10"
         autoscaling.knative.dev/minScale: "1"
         run.googleapis.com/cpu-throttling: "false"
     spec:
       containerConcurrency: 10
       timeoutSeconds: 60
-      serviceAccountName: sofi-copilot-sa@PROJECT_ID.iam.gserviceaccount.com
+      serviceAccountName: 241555494310-compute@developer.gserviceaccount.com
       containers:
-        - image: gcr.io/PROJECT_ID/sofi-copilot:latest
+        - image: gcr.io/promptwars-4-502819/promptwars-smart-stadium:latest
           ports:
             - containerPort: 8080
           env:
             - name: NODE_ENV
               value: production
             - name: GCP_PROJECT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: sofi-copilot-secrets
-                  key: GCP_PROJECT_ID
+              value: promptwars-4-502819
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: sofi-copilot-secrets
-                  key: GEMINI_API_KEY
-            - name: ALLOWED_ORIGIN
-              valueFrom:
-                secretKeyRef:
-                  name: sofi-copilot-secrets
-                  key: ALLOWED_ORIGIN
+                  name: GEMINI_API_KEY
+                  key: latest
           resources:
             limits:
               memory: 512Mi
