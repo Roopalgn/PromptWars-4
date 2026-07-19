@@ -20,8 +20,12 @@ class MemoryStore {
   private collections = new Map<string, Map<string, FirestoreDoc>>();
 
   private col(name: string): Map<string, FirestoreDoc> {
-    if (!this.collections.has(name)) this.collections.set(name, new Map());
-    return this.collections.get(name)!;
+    let collection = this.collections.get(name);
+    if (!collection) {
+      collection = new Map<string, FirestoreDoc>();
+      this.collections.set(name, collection);
+    }
+    return collection;
   }
 
   async get(collection: string, docId: string): Promise<FirestoreDoc | null> {

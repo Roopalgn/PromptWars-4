@@ -16,6 +16,8 @@ AI-powered stadium operations assistant for SoFi Stadium during FIFA World Cup 2
 
 The deployed demo starts with seeded operational pressure so evaluators see a non-empty queue immediately: crowd pressure, a gate delay, a medical incident, and an accessibility escort.
 
+The seeded scenario is repeatable: clear weather, a 94% north-concourse surge, an 88% east-gate queue, one delayed gate, one medical incident, and one wheelchair escort. This keeps the first judge walkthrough informative instead of random or empty.
+
 Fan escort requests are persisted and become volunteer tasks. Volunteers can assign, start, and resolve tasks from the dashboard. Those lifecycle updates are persisted in Firestore when GCP credentials are present, with an in-memory fallback for zero-credential local runs.
 
 Gemini responses keep the simple UI contract (`response`, `offline`) and also expose judge-friendly evidence fields: `factsUsed`, `taskIds`, and `recommendedActions`.

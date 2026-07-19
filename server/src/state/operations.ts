@@ -40,13 +40,29 @@ function seedDemoState(state: SimulationState): SimulationState {
   if (state.tick !== 0) return state;
 
   const now = state.timestamp;
+  const judgeScenarioOccupancy: Record<string, number> = {
+    'gate-a': 62,
+    'gate-b': 88,
+    'gate-c': 58,
+    'gate-d': 68,
+    'concourse-north': 94,
+    'concourse-east': 76,
+    'concourse-south': 72,
+    'concourse-west': 64,
+    'section-100s': 55,
+    'section-200s': 68,
+    'medical-bay': 32,
+    'accessibility-hub': 82,
+    'food-court-north': 70,
+    'restrooms-north': 48,
+  };
   return {
     ...state,
     occupancySignals: state.occupancySignals.map(signal => {
-      if (signal.zoneId === 'concourse-north') return { ...signal, occupancy: 94, trend: 'rising', updatedAt: now };
-      if (signal.zoneId === 'gate-b') return { ...signal, occupancy: 88, trend: 'rising', updatedAt: now };
-      return signal;
+      const occupancy = judgeScenarioOccupancy[signal.zoneId] ?? signal.occupancy;
+      return { ...signal, occupancy, trend: occupancy >= signal.occupancy ? 'rising' : 'stable', updatedAt: now };
     }),
+    weatherSignal: { condition: 'clear', concourseMultiplier: 1, updatedAt: now },
     gateDelaySignals: [
       {
         gateId: 'gate-b',

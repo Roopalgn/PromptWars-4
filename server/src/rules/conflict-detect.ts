@@ -19,7 +19,8 @@ export function detectSameVolunteerConflicts(tasks: Task[]): ConflictFlag[] {
   const byVolunteer = new Map<string, Task[]>();
 
   for (const task of assignedTasks) {
-    const vid = task.assignedTo!;
+    const vid = task.assignedTo;
+    if (!vid) continue;
     const existing = byVolunteer.get(vid) ?? [];
     existing.push(task);
     byVolunteer.set(vid, existing);
@@ -32,8 +33,9 @@ export function detectSameVolunteerConflicts(tasks: Task[]): ConflictFlag[] {
     // Flag each pair
     for (let i = 0; i < volunteeTasks.length; i++) {
       for (let j = i + 1; j < volunteeTasks.length; j++) {
-        const a = volunteeTasks[i]!;
-        const b = volunteeTasks[j]!;
+        const a = volunteeTasks[i];
+        const b = volunteeTasks[j];
+        if (!a || !b) continue;
         flags.push({
           conflictId: randomUUID(),
           taskA: a.taskId,
@@ -70,8 +72,9 @@ export function detectRouteCollisions(tasks: Task[]): ConflictFlag[] {
     if (routeTasks.length < 2) continue;
     for (let i = 0; i < routeTasks.length; i++) {
       for (let j = i + 1; j < routeTasks.length; j++) {
-        const a = routeTasks[i]!;
-        const b = routeTasks[j]!;
+        const a = routeTasks[i];
+        const b = routeTasks[j];
+        if (!a || !b) continue;
         flags.push({
           conflictId: randomUUID(),
           taskA: a.taskId,

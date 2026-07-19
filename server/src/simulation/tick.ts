@@ -123,7 +123,7 @@ export function generateGateDelaySignals(now: string): GateDelaySignal[] {
       delayMinutes: Math.round(3 + _rand() * 20),
       cause: (['security', 'capacity', 'incident'] as const)[
         Math.floor(_rand() * 3)
-      ]!,
+      ] ?? 'security',
       fanQueueCount: Math.round(100 + _rand() * 900),
       updatedAt: now,
     }));
@@ -261,11 +261,11 @@ export function advanceIncidents(
     const severities = ['low', 'medium', 'high'] as const;
     active.push({
       incidentId: randomUUID(),
-      type: types[Math.floor(_rand() * types.length)]!,
+      type: types[Math.floor(_rand() * types.length)] ?? 'medical',
       zone:
         INCIDENT_ZONE_IDS[Math.floor(_rand() * INCIDENT_ZONE_IDS.length)] ??
         'concourse-north',
-      severity: severities[Math.floor(_rand() * severities.length)]!,
+      severity: severities[Math.floor(_rand() * severities.length)] ?? 'low',
       status: 'open',
       reportedAt: now,
     });

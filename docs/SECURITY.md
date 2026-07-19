@@ -16,6 +16,7 @@ This is a public hackathon demo, so the security model focuses on keeping the se
 | Secrets | Gemini key is stored in Secret Manager and injected into Cloud Run |
 | Container | Docker image runs as a non-root `nodejs` user |
 | Persistence | Firestore access uses the Cloud Run service account |
+| Operator guard | Optional `ADMIN_TOKEN` protects task updates, escort creation, and simulation ticks |
 
 ## Content Security Policy
 
@@ -41,10 +42,10 @@ Zod schemas validate route inputs, required fields, enum values, and length boun
 
 | Limitation | Risk | Production fix |
 |------------|------|----------------|
-| Volunteer routes have no authentication | Medium | Cloud IAP or Firebase Auth |
+| Volunteer routes have no user authentication | Medium | Cloud IAP or Firebase Auth; set `ADMIN_TOKEN` for operator-only API mutations |
 | Fan IDs are pseudonymous but user supplied | Low | Server-issued session IDs |
 | Inline style CSP allowance | Low | Move inline styles to classes/CSS variables or introduce nonce-based rendering |
-| Public simulation tick endpoint | Low | Restrict to admin/demo token |
+| Simulation tick is open when `ADMIN_TOKEN` is unset | Low | Set `ADMIN_TOKEN` and send `x-admin-token` or a Bearer token |
 | In-memory fallback is process-local | Low | Use Firestore in deployed production path |
 
 ## Security Checklist
@@ -57,3 +58,4 @@ Zod schemas validate route inputs, required fields, enum values, and length boun
 - [x] HTML/script sanitization before AI processing
 - [x] Non-root container
 - [x] Honest documentation of CSP and auth limitations
+- [x] Optional constant-time admin token guard for mutating operator routes

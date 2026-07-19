@@ -197,14 +197,15 @@ export async function processWithGemini(
       if (functionCalls.length === 0) break;
 
       // Execute all function calls
-      const functionResults = functionCalls.map(part => {
-        const fc = part.functionCall!;
+      const functionResults = functionCalls.flatMap(part => {
+        const fc = part.functionCall;
+        if (!fc) return [];
         const result = executeTool(
           fc.name as ToolName,
           (fc.args ?? {}) as Record<string, unknown>,
           engineOutput,
         );
-        return { functionResponse: { name: fc.name, response: { result } } };
+        return [{ functionResponse: { name: fc.name, response: { result } } }];
       });
 
       // Send results back to Gemini

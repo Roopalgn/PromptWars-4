@@ -27,7 +27,7 @@ import { processWithGemini } from './agent/gemini.js';
 import { processOfflineQuery } from './agent/offline.js';
 import { createEscortRequest, getOperationalOutput, listEscortRequests, updateTaskLifecycle } from './state/operations.js';
 import type { EscortRequest, TaskStatus } from './types/index.js';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -79,6 +79,20 @@ app.use('/api/tts', aiLimiter);
 // ---------------------------------------------------------------------------
 function sanitize(str: string): string {
   return str.replace(/<[^>]*>/g, '').replace(/javascript:/gi, '').trim().slice(0, 2000);
+}
+
+/** Optional operator guard. Set ADMIN_TOKEN in production to protect mutations. */
+function adminGuard(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const expected = process.env['ADMIN_TOKEN'];
+  if (!expected) { next(); return; }
+  const supplied = req.header('x-admin-token') ?? req.header('authorization')?.replace(/^Bearer\s+/i, '');
+  if (!supplied) { res.status(401).json({ error: 'Admin token required' }); return; }
+  const expectedBytes = Buffer.from(expected);
+  const suppliedBytes = Buffer.from(supplied);
+  if (expectedBytes.length !== suppliedBytes.length || !timingSafeEqual(expectedBytes, suppliedBytes)) {
+    res.status(403).json({ error: 'Invalid admin token' }); return;
+  }
+  next();
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +197,7 @@ const taskUpdateSchema = z.object({
   assignedTo: z.string().min(1).max(64).optional(),
 });
 
-app.patch('/api/tasks/:id', dataLimiter, async (req, res, next) => {
+app.patch('/api/tasks/:id', dataLimiter, adminGuard, async (req, res, next) => {
   try {
     const rawTaskId = req.params['id'];
     const taskId = Array.isArray(rawTaskId) ? rawTaskId[0] : rawTaskId;
@@ -207,7 +221,7 @@ const escortCreateSchema = z.object({
   needType: z.enum(['wheelchair', 'visual', 'hearing', 'elderly', 'cognitive']),
 });
 
-app.post('/api/escort', dataLimiter, async (req, res, next) => {
+app.post('/api/escort', dataLimiter, adminGuard, async (req, res, next) => {
   try {
   const parsed = escortCreateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -334,7 +348,7 @@ app.post('/api/tts', aiLimiter, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Simulation tick route (dev / demo)
 // ---------------------------------------------------------------------------
-app.get('/api/simulation/tick', dataLimiter, (_req, res) => {
+app.get('/api/simulation/tick', dataLimiter, adminGuard, (_req, res) => {
   const state = tickSimulation();
   const output = computeTaskQueue({ venue: sofiVenue, state });
   res.json({ tick: state.tick, tasks: output.tasks.length, zones: output.zoneStatuses.length });

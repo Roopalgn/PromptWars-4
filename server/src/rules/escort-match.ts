@@ -80,7 +80,8 @@ export function findNearestVolunteer(
   distances.set(fromZoneId, 0);
 
   while (queue.length > 0) {
-    const current = queue.shift()!;
+    const current = queue.shift();
+    if (!current) continue;
     const zone = sofiZoneMap.get(current.zoneId);
     if (!zone) continue;
     for (const neighborId of zone.adjacentZones) {
